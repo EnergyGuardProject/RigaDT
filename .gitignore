@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Virtualenv
+venv/
+ENV/
+
+# VS Code
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data and outputs (do not commit large datasets or generated outputs)
+data/
+output/
+merged_output_residential/
+*.geojson
+*.csv
+
+# Logs
+.log
+
+# Pytest cache
+.pytest_cache/
+
+# Byte-compiled / distribution
+build/
+dist/
+*.egg-info/
+
+# Git LFS placeholder (if you use LFS for large files)
+*.shp
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# Tooling and editor
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local raw data folders (large, machine-specific)
+0001000_kk_shp/
+building/
+rigaDTvenv/
+
+# Local input/cache files (machine-specific)
+Heating_2017-2024.csv
+building_heat_series.json
+rea_all_features.json
+
+# Pipeline-generated outputs
+output/*.json
+output/*.geojson
+output/*.csv
+pipeline_metrics_report.txt
