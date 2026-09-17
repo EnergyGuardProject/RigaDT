@@ -1,0 +1,11 @@
+services:
+  riga-data-lake-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    container_name: riga-data-lake-api
+    restart: always
+    ports:
+      - 9007:8001
