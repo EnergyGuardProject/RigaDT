@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Buildings Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css"/>
+
+  <!-- Application Styles -->
+  <link rel="stylesheet" href="styles.css?v=20260724z"/>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div id="city-overview-panel" class="city-overview-panel" hidden></div>
+  <button id="city-overview-toggle-btn" class="city-overview-toggle-btn" type="button" title="City-scale Overview" aria-label="Open city-scale overview" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/>
+      <line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/>
+      <line x1="4" y1="18" x2="20" y2="18"/><circle cx="7" cy="18" r="2"/>
+    </svg>
+    <span>City-scale Overview</span>
+    <svg class="cf-toggle-chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15"/>
+    </svg>
+  </button>
+  <div id="meteo-station-card" class="aq-station-card" hidden>
+    <div class="aq-station-card-title">Meteorological stations</div>
+    <div class="aq-station-list" id="meteo-station-list"></div>
+  </div>
+  <div id="aq-station-card" class="aq-station-card" hidden>
+    <div class="aq-station-card-title">Air quality stations</div>
+    <div class="aq-station-list" id="aq-station-list"></div>
+  </div>
+  <div id="minimap-toggle" title="Toggle minimap">▼</div>
+  <div id="minimap-wrapper">
+    <div id="minimap"></div>
+    <div class="minimap-viewport" id="viewport-rect"></div>
+    <button id="minimap-home-btn" type="button" title="Return to Riga" aria-label="Return to Riga">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="7"/>
+        <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+        <path d="M12 1.5v3"/>
+        <path d="M12 19.5v3"/>
+        <path d="M1.5 12h3"/>
+        <path d="M19.5 12h3"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet/leaflet-maplibre-gl.js"></script>
+  <!-- Application Script -->
+  <script src="app.js?v=20260724z"></script>
+</body>
+</html>
