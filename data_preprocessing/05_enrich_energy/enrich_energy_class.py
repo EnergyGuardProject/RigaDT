@@ -33,6 +33,11 @@ IPATN_SILT_COL_CANDIDATES = [
     "ipatn_silt",
 ]
 
+RENOVATION_COL_CANDIDATES = [
+    "renovacija",
+    "Renovacija",
+]
+
 
 def normalize_cadastre(value: Any) -> Optional[str]:
     if value is None:
@@ -94,6 +99,14 @@ def parse_int(value: Any) -> Optional[int]:
         return int(round(f))
     except Exception:
         return None
+
+
+def parse_renovation_year(value: Any) -> Any:
+    """Extract a four-digit renovation year, or preserve missing values as ''."""
+    if value is None:
+        return ""
+    match = re.search(r"\b(\d{4})\b", str(value).strip())
+    return int(match.group(1)) if match else ""
 
 
 def split_cadastre_values(raw: Any) -> List[str]:
@@ -224,6 +237,9 @@ def build_lookup(rows: Iterable[Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
         area = parse_reference_area(get_first_value(row, REFERENCE_AREA_COL_CANDIDATES))
         ekspl_gads = parse_int(get_first_value(row, EXPL_GADS_COL_CANDIDATES))
         ipatn_silt = parse_float(get_first_value(row, IPATN_SILT_COL_CANDIDATES))
+        renovation = parse_renovation_year(
+            get_first_value(row, RENOVATION_COL_CANDIDATES)
+        )
 
         cad_values = split_cadastre_values(cad_raw)
         for one in cad_values:
@@ -239,6 +255,7 @@ def build_lookup(rows: Iterable[Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
                     "reference_area_m2": area,
                     "manufacture_year": ekspl_gads,
                     "heating_indicator": ipatn_silt,
+                    "renovation": renovation,
                 }
             else:
                 if lookup[cad].get("energy_perf_class") is None and cls is not None:
@@ -251,6 +268,8 @@ def build_lookup(rows: Iterable[Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
                     lookup[cad]["manufacture_year"] = ekspl_gads
                 if lookup[cad].get("heating_indicator") is None and ipatn_silt is not None:
                     lookup[cad]["heating_indicator"] = ipatn_silt
+                if lookup[cad].get("renovation", "") == "" and renovation != "":
+                    lookup[cad]["renovation"] = renovation
 
     return lookup
 
@@ -328,6 +347,7 @@ def main() -> None:
     area_col = first_present_column(fieldnames, REFERENCE_AREA_COL_CANDIDATES)
     ekspl_col = first_present_column(fieldnames, EXPL_GADS_COL_CANDIDATES)
     ipatn_col = first_present_column(fieldnames, IPATN_SILT_COL_CANDIDATES)
+    renovation_col = first_present_column(fieldnames, RENOVATION_COL_CANDIDATES)
 
     missing_cols = []
     if cad_col is None:
@@ -348,6 +368,7 @@ def main() -> None:
     print(f"  reference area: {area_col}")
     print(f"  ekspl_gads: {ekspl_col or 'missing (will be null)'}")
     print(f"  ipatn_silt: {ipatn_col or 'missing (will be null)'}")
+    print(f"  renovation: {renovation_col or 'missing (will be empty)'}")
 
     print("Building lookup from CSV...")
     lookup = build_lookup(rows)
@@ -376,6 +397,7 @@ def main() -> None:
             props["reference_area_m2"] = lookup[cad].get("reference_area_m2")
             props["manufacture_year"] = lookup[cad].get("manufacture_year")
             props["heating_indicator"] = lookup[cad].get("heating_indicator")
+            props["renovation"] = lookup[cad].get("renovation", "")
             matched += 1
         else:
             props["energy_perf_class"] = None
@@ -383,9 +405,13 @@ def main() -> None:
             props["reference_area_m2"] = None
             props["manufacture_year"] = None
             props["heating_indicator"] = None
+            props["renovation"] = ""
             unmatched += 1
 
+        renovation = props.get("renovation", "")
         feat["properties"] = normalize_empty_to_null(props)
+        # Renovation intentionally uses an empty string for missing values.
+        feat["properties"]["renovation"] = renovation
         if not has_required_energy_fields(feat["properties"]):
             dropped_missing_energy += 1
             continue

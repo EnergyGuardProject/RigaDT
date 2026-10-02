@@ -19,7 +19,7 @@ else:
         f"Building folder not found: tried {default_build_base} and {alt_build_base}"
     )
 
-script_path = os.path.join(build_base, "0000000", "xml2csv.py")
+script_path = os.path.join(PROJECT_ROOT, "utils", "xml2csv.py")
 
 if not os.path.exists(script_path):
     raise FileNotFoundError(f"xml2csv converter not found: {script_path}")

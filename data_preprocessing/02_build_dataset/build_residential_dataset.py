@@ -126,14 +126,18 @@ def normalize_cadastre(value: Any) -> Optional[str]:
     return digits
 
 
-def load_historical_cadastres(csv_path: str) -> Set[str]:
+def load_historical_cadastres(csv_path: str) -> Tuple[Set[str], Dict[str, str]]:
     path = Path(csv_path)
     if not path.exists():
         raise FileNotFoundError(f"Historical cadastre CSV not found: {csv_path}")
 
     allowed: Set[str] = set()
+    addresses: Dict[str, str] = {}
     with path.open('r', encoding='utf-8-sig', newline='') as f:
-        reader = csv.DictReader(f)
+        sample = f.read(4096)
+        f.seek(0)
+        dialect = csv.Sniffer().sniff(sample, delimiters=',;\t')
+        reader = csv.DictReader(f, dialect=dialect)
         if not reader.fieldnames:
             raise ValueError(f"Historical cadastre CSV has no headers: {csv_path}")
 
@@ -143,16 +147,23 @@ def load_historical_cadastres(csv_path: str) -> Set[str]:
             raise ValueError(
                 f"Could not find cadastre column in {csv_path}; headers={reader.fieldnames}"
             )
+        address_column = next(
+            (c for c in reader.fieldnames if c.lower() in {'address', 'adrese'}),
+            None,
+        )
 
         for row in reader:
             cad = normalize_cadastre(row.get(cadastre_column))
             if cad:
                 allowed.add(cad)
+                address = (row.get(address_column) or '').strip() if address_column else ''
+                if address:
+                    addresses[cad] = address
 
     if not allowed:
         raise ValueError(f"Historical cadastre CSV is empty or has no valid cadastre values: {csv_path}")
 
-    return allowed
+    return allowed, addresses
 
 
 def build_cadastre_database(
@@ -175,7 +186,7 @@ def build_cadastre_database(
         'FlatArea',
         'BuildingUseKindName',
         'BuildingKindName',
-        'BuildingKindId'
+    'BuildingKindId'
     ]
     
     # Minimal residential keywords/prefixes based on dataset scan
@@ -249,7 +260,9 @@ def build_cadastre_database(
                     # Extract the stem (last part after the last dot)
                     stem = k.split('.')[-1] if '.' in k else k
                     # Check if stem exactly matches any keyword
-                    if stem in keywords:
+                    if stem in keywords or any(
+                        marker in k.lower() for marker in ('address', 'adrese')
+                    ):
                         filtered_dict[k] = v
             
             # Store the residential building (even if no matching keyword fields)
@@ -296,7 +309,8 @@ def find_shapefiles(base_folder: str, layer_name: str = "KKBuilding") -> List[st
 
 def merge_building_data_to_geojson(geojson_path: str, cadastre_db: Dict[str, Dict[str, Any]], 
                                    output_path: str, debug: bool = False,
-                                   allowed_cadastres: Optional[Set[str]] = None) -> Tuple[int, int, int]:
+                                   allowed_cadastres: Optional[Set[str]] = None,
+                                   address_lookup: Optional[Dict[str, str]] = None) -> Tuple[int, int, int]:
     """Merge building data into GeoJSON features based on cadastre numbers."""
     try:
         # Read GeoJSON
@@ -369,6 +383,7 @@ def merge_building_data_to_geojson(geojson_path: str, cadastre_db: Dict[str, Dic
                 matched += 1
                 # Add building data to feature properties
                 properties['building_data'] = building_data
+                properties['ADDRESS'] = (address_lookup or {}).get(code_norm, '')
                 
                 # Flatten some key fields to top level for easier access
                 first_building = building_data[0]
@@ -380,6 +395,10 @@ def merge_building_data_to_geojson(geojson_path: str, cadastre_db: Dict[str, Dic
                 building_kind_name = None
                 
                 for key in first_building.keys():
+                    if (
+                        'address' in key.lower() or 'adrese' in key.lower()
+                    ) and first_building.get(key):
+                        properties['ADDRESS'] = first_building.get(key)
                     if 'MaterialKindName' in key:
                         material_kind_name = first_building.get(key, '')
                         properties['building_material'] = material_kind_name
@@ -393,6 +412,8 @@ def merge_building_data_to_geojson(geojson_path: str, cadastre_db: Dict[str, Dic
                         properties['building_kind_id'] = first_building.get(key, '')
                     if 'Area' in key and 'building_area' not in properties:
                         properties['building_area'] = first_building.get(key, '')
+
+                    properties.setdefault('ADDRESS', '')
                 
                 # Preserve native classification fields and match details
                 properties['is_residential'] = bool(first_building.get('_is_residential', True))
@@ -460,8 +481,9 @@ def main():
     
     # Step 2: Build cadastre database
     print("\nStep 2: Building cadastre database...")
-    allowed_cadastres = load_historical_cadastres(HISTORICAL_CADASTRES_CSV)
+    allowed_cadastres, address_lookup = load_historical_cadastres(HISTORICAL_CADASTRES_CSV)
     print(f"Loaded historical cadastre allowlist: {len(allowed_cadastres)} codes")
+    print(f"Loaded addresses: {len(address_lookup)}")
 
     cadastre_db = build_cadastre_database(csv_files, allowed_cadastres=allowed_cadastres)
     
@@ -500,11 +522,11 @@ def main():
     total_filtered_out = 0
     
     for idx, geojson_file in enumerate(tqdm(geojson_files, desc="Processing GeoJSON files")):
-        # Extract the GeoJSON filename (without extension)
+        # Include the source group so each output file remains distinct.
         geojson_filename = os.path.basename(geojson_file).replace('.geojson', '')
+        source_group = os.path.basename(os.path.dirname(geojson_file))
         
-        # Create output filename with merged_ prefix and the original GeoJSON filename
-        output_filename = f"merged_{geojson_filename}.geojson"
+        output_filename = f"merged_{source_group}_{geojson_filename}.geojson"
         output_path = os.path.join(OUTPUT_BASE, output_filename)
         
         # Ensure output directory exists
@@ -523,6 +545,7 @@ def main():
             output_path,
             debug=debug_mode,
             allowed_cadastres=allowed_cadastres,
+            address_lookup=address_lookup,
         )
         total_matched += matched
         total_not_matched += not_matched

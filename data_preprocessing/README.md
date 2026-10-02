@@ -3,7 +3,7 @@
 ## Folder structure
 
 ```
-script_pipeline/
+data_preprocessing/
 ├── run_pipeline.py                         ← orchestrator
 ├── 01_xml_to_csv/
 │   └── batch_xml2csv.py
@@ -22,6 +22,7 @@ script_pipeline/
 └── utils/
     ├── download_rea_all_features.py        ← one-time REA data download
     ├── filter_only_with_heat_series.py     ← optional post-pipeline filter
+    ├── xml2csv.py                          ← XML flattener used by step 1
     ├── enrich_heat_consumption.py          ← legacy API-based enrichment (reference only)
     └── debug/
         ├── analyze_duplicates.py
@@ -36,11 +37,14 @@ script_pipeline/
 ### 1 — XML → CSV (`01_xml_to_csv/batch_xml2csv.py`)
 - Does: parse State Land textual XML exports into a normalized CSV of building attributes.
 - Keeps: rows with a cadastral identifier (`Kadastra Nr.` / `CODE`), building type, address fields, and basic attributes used later (area, floors, year).
+- Converter: `utils/xml2csv.py` (flattens each XML export to CSV).
 - Source: State Land - Textual Data — https://data.gov.lv/dati/dataset/b28f0eed-73b0-4e44-94e7-b04b11bf0b69/resource/bf88b763-98b8-445d-a51f-b76f45c362c5/download/0001000_kk_shp.zip (or local folder `0001000_kk_shp`)
 
 ### 2 — Geometry merge & classification (`02_build_dataset/build_residential_dataset.py`)
 - Does: read per-group geometry (shapefiles / GeoJSON), join with textual CSV by cadastre ID, run material/classification rules.
 - Keeps: features that match the textual CSV and that are residential (filter by `OBJECTCODE` / building type), and whose `CODE` is present in the historical allowlist.
+- Adds `ADDRESS` from the allowlist CSV's `address`/`adrese` column (delimiter auto-detected), or from address fields in the textual data; empty string if none.
+- Output files are named `merged_<source_group>_<geojson_name>.geojson` so groups stay distinct.
 - Source: State Land - Geometry Data — https://data.gov.lv/dati/dataset/be841486-4af9-4d38-aa14-6502a2ddb517/resource/9fe29b57-07cd-4458-b22c-b0b9f2bc8915/download/building.zip (or local `0001000_kk_shp/ExportCadGroup_*`)
 
 ### 3 — Concatenate groups (`03_merge_and_dedup/combine_residential_groups.py`)
@@ -55,7 +59,7 @@ script_pipeline/
 
 ### 3c — Fill missing building attributes (`03_merge_and_dedup/heating_data_fallback.py`)
 - Does: use `Heating_2017-2024.csv` fallback to populate missing `building_data` fields (e.g., heated area, heating system) when available.
-- Keeps: all features; updates properties where heating CSV provides data.
+- Keeps: all features; updates properties where heating CSV provides data (also sets `ADDRESS` from the heating CSV).
 - Source (local): `Heating_2017-2024.csv`
 
 ### 4 — Heat consumption enrichment (`04_enrich_heat/enrich_heat_timeseries.py`)
@@ -79,10 +83,41 @@ script_pipeline/
 | `output/all_buildings_with_building_fields_heat.json` | Heat-enriched (post-step 4) |
 | `output/historical_residential_buildings_full_pipeline_heat_energy.json` | Final heat + energy output (post-step 5) |
 
+## Prepare Inputs
+
+Run these commands from this directory. They place the public State Land
+downloads where `run_pipeline.py` expects them:
+
+```bash
+cd /home/atzortzis/rigaDT_data_pipeline/data_preprocessing
+mkdir -p data/building/Building data/0001000_kk_shp
+
+# State Land textual XML data. The XML converter searches data/building/Building.
+curl -L "https://data.gov.lv/dati/dataset/b28f0eed-73b0-4e44-94e7-b04b11bf0b69/resource/bf88b763-98b8-445d-a51f-b76f45c362c5/download/0001000_kk_shp.zip" -o /tmp/0001000_kk_shp_textual.zip
+unzip -q /tmp/0001000_kk_shp_textual.zip -d data/building/Building
+
+# State Land geometry data. The merge step searches data/0001000_kk_shp.
+curl -L "https://data.gov.lv/dati/dataset/be841486-4af9-4d38-aa14-6502a2ddb517/resource/9fe29b57-07cd-4458-b22c-b0b9f2bc8915/download/building.zip" -o /tmp/building_geometry.zip
+unzip -q /tmp/building_geometry.zip -d data/0001000_kk_shp
+```
+
+The following inputs are required by later stages but are not public download
+URLs in this repository. Place them at these exact paths:
+
+| File | Required path |
+|------|---------------|
+| Historical cadastre allowlist | `data/historical_cadastre_lookup.csv` |
+| Heating fallback data | `data/Heating_2017-2024.csv` |
+| REA heat export | `data/rea_all_features.json` |
+| Heat cache (optional fallback) | `data/building_heat_series.json` |
+
+The energy-efficiency source is downloaded automatically by step 5.
+
 ## Run
 
-```powershell
-python .\script_pipeline\run_pipeline.py
+```bash
+cd /home/atzortzis/rigaDT_data_pipeline/data_preprocessing
+python run_pipeline.py
 ```
 
 ## Datasets
@@ -92,7 +127,7 @@ python .\script_pipeline\run_pipeline.py
 | State Land - Textual Data | https://data.gov.lv/dati/dataset/b28f0eed-73b0-4e44-94e7-b04b11bf0b69/resource/bf88b763-98b8-445d-a51f-b76f45c362c5/download/0001000_kk_shp.zip |
 | State Land - Geometry Data | https://data.gov.lv/dati/dataset/be841486-4af9-4d38-aa14-6502a2ddb517/resource/9fe29b57-07cd-4458-b22c-b0b9f2bc8915/download/building.zip |
 | Heating time series (local) | `Heating_2017-2024.csv` |
-| Historical cadastre allowlist (local) | `script_pipeline/historical_cadastre_lookup.csv` |
+| Historical cadastre allowlist (local) | `data/historical_cadastre_lookup.csv` |
 | Building energy certificates | https://data.gov.lv/dati/dataset/075498f5-0136-47d7-af86-0066acb0264c/resource/212c0946-a06e-4c2c-8112-833b2969b44b/download/eku-energosertifikati-21.10.2025.csv |
 | Energy efficiency indicators | https://data.gov.lv/api/action/package_search?q=rigas-daudzdzivoklu-maju-apkures-energoefektivitates-raditaji |
 | 3D LOD2 | https://data.gov.lv/api/action/package_search?q=rigas-apkaimju-lod2-modeli |
@@ -105,7 +140,7 @@ python .\script_pipeline\run_pipeline.py
 - Building-kind ID prefixes accepted as residential: `1110`, `112`, `113`.
 
 **Historical allowlist** (step 2):
-- File: `script_pipeline/historical_cadastre_lookup.csv`.
+- File: `data/historical_cadastre_lookup.csv`.
 - Accepted header names: `Kadastra Nr.`, `Kadastra Nr`, `KadastraNr`, `CODE` (or first column).
 - Cadastre values are normalized (digits only, padded to 14 characters) before comparison.
 
@@ -117,6 +152,9 @@ python .\script_pipeline\run_pipeline.py
 - Cadastre column candidates: `Objektu_identificejosie_kadastra_apzimejumi`, `cadastrena`.
 - Energy-class column candidates: `Ekas_energoefektivitates_klase`, `enef_klase`.
 - Reference-area column candidates: `References_platiba_m2`, `lietd_plat`.
+- Manufacture-year column candidate: `ekspl_gads`.
+- Heating-indicator column candidate: `ipatn_silt`.
+- Renovation column candidates: `renovacija`, `Renovacija`. Only the four-digit year is kept (e.g. `ALTUM 2022` → `2022`); `""` when missing (not `null`).
 - Final quality rule: features missing either `energy_class` or `reference_area_m2` are dropped.
 
 ## Field reference (by step)
@@ -141,9 +179,11 @@ python .\script_pipeline\run_pipeline.py
 - `is_residential`, `residential_match_keyword`, `residential_match_field`
 - `building_use_native`, `building_kind_native`, `building_kind_id_native`
 - `heavy_light` (light / heavy / mixed)
+- `ADDRESS`
 
 **Step 3c — fields filled/updated:**
 - `source_csv_file`, `building_data_source` (set to `heating_fallback`)
+- `ADDRESS`
 - `manufacture_year`
 - Values inside `building_data` entries (area, floor count, etc.)
 
@@ -154,6 +194,7 @@ python .\script_pipeline\run_pipeline.py
 - `energy_perf_class`, `energy_class`, `reference_area_m2`
 - `manufacture_year` (may overwrite step 3c value)
 - `heating_indicator`
+- `renovation` (year parsed from `renovacija`, e.g. `2022`; `""` if none)
 - Provenance fields (source CSV name/URL)
 
 ## Notes

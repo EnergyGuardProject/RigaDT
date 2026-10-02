@@ -244,6 +244,7 @@ def main() -> None:
         props["residential_match_field"] = "Heating_2017-2024.csv"
         props["building_kind_native"] = kind_name
         props["building_kind_id_native"] = kind_id
+        props["ADDRESS"] = rec.get("source_address", "")
         props["heavy_light"] = "unknown"
         props["source_csv_file"] = heating_csv_path.name
         props["building_data_source"] = "heating_fallback"
