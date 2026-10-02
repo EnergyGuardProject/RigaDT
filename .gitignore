@@ -63,6 +63,11 @@ env/
 .DS_Store
 Thumbs.db
 
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
 # Local raw data folders (large, machine-specific)
 0001000_kk_shp/
 building/
@@ -78,3 +83,4 @@ output/*.json
 output/*.geojson
 output/*.csv
 pipeline_metrics_report.txt
+/inergy_stateland
