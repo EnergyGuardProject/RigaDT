@@ -8,4 +8,4 @@ services:
     container_name: riga-data-lake-api
     restart: always
     ports:
-      - 9007:8001
+      - "127.0.0.1:9007:8001"

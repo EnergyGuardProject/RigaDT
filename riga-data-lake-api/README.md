@@ -10,6 +10,46 @@ Interactive documentation (Swagger UI) is served at `/docs` and the OpenAPI sche
 |--------|------|-------------|
 | GET | `/` | Health/info message |
 | GET | `/georiga/building-monthly-heat-series` | Monthly per-building heat consumption (GeoRiga REA) |
+| GET | `/georiga/addresses` | Address points |
+| GET | `/georiga/existing-buildings` | Existing building footprints |
+| GET | `/georiga/demolished-buildings` | Demolished building footprints |
+| GET | `/georiga/streets` | Street centre lines |
+| GET | `/georiga/building-energy-efficiency-indicators` | Per-building energy efficiency indicators (energy class, heat use, renovation)* |
+| GET | `/georiga/renovated-buildings-energy-efficiency` | Renovated buildings: measures, financing, planned/achieved savings* |
+| GET | `/georiga/degraded-buildings` | Environment-degrading buildings* |
+| GET | `/georiga/suburbs` | Suburb boundaries |
+| GET | `/georiga/city-boundary` | City boundary |
+| GET | `/georiga/heat-supply-zones` | Territorial zones for heat supply choice |
+| GET | `/georiga/noise-2021-day` | Noise map 2021, day |
+| GET | `/georiga/noise-2021-evening` | Noise map 2021, evening |
+| GET | `/georiga/noise-2021-night` | Noise map 2021, night |
+| GET | `/georiga/noise-2021-average` | Noise map 2021, day-evening-night average |
+| GET | `/cadastre/buildings` | Cadastral building register* |
+| GET | `/cadastre/building-amounts` | Building amounts (areas, volumes)* |
+| GET | `/cadastre/building-elements` | Building elements* |
+| GET | `/cadastre/building-element-materials` | Element materials* |
+| GET | `/cadastre/building-improvements` | Building improvements* |
+| GET | `/cadastre/building-parcels` | Building-parcel links* |
+| GET | `/cadastre/building-types` | Building kind classification* |
+| GET | `/cadastre/building-footprints` | Cadastral building geometries (`code` = cadastre number)* |
+| GET | `/cadastre/parcels` | Cadastral parcel geometries (`code` = parcel number)* |
+| GET | `/cadastre/cadastral-groups` | Cadastral group geometries |
+
+### Dataset endpoints (`/georiga/*` and `/cadastre/*`)
+
+One endpoint per table of the `gis` and `cadastre` schemas. They all return `{ "total", "limit", "offset", "data": [...] }` ordered by primary key.
+
+| Query parameter | Applies to | Description |
+|-----------------|-----------|-------------|
+| `limit` (1–1000, default 100), `offset` | all | Pagination |
+| `include_geometry` (default `true`) | datasets with geometry | Adds a `geometry` field (GeoJSON, WGS84/EPSG:4326; stored as LKS-92/EPSG:3059). Use `false` for much smaller responses |
+| `cadastre_number` | endpoints marked `*` | Exact match on the dataset's cadastre column (404 if nothing matches) |
+
+Column names are those of the source tables (mostly Latvian). Full details are in `/docs`.
+
+Geometry can be large (about 15 KB per row for the noise maps, 47 KB for the city boundary), so for attribute-only use pass `include_geometry=false` or a small `limit`.
+
+In `/docs` the endpoints are grouped by theme: Heat consumption, Buildings (GeoRiga), Energy efficiency, Noise 2021, Addresses & streets, Administrative boundaries, Cadastre - buildings, and Cadastre - land.
 
 ### `GET /georiga/building-monthly-heat-series`
 
@@ -103,4 +143,5 @@ riga-data-lake-api/
 ## Notes
 
 - The database is only read, never written.
-- The schema queried is `public.d_sensor`, `d_sensor_type`, `f_tsdata` and `d_calendar`.
+- Schemas queried: `public` (`d_sensor`, `d_sensor_type`, `f_tsdata`, `d_calendar`), `gis` and `cadastre`.
+- Other sensor types are defined in `d_sensor_type`, but the lake holds data only for the heat series, so there are no endpoints for them.
