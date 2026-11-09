@@ -7,5 +7,16 @@ services:
       - .env
     container_name: riga-data-lake-api
     restart: always
+    # --root-path tells FastAPI it is served under /riga-data-lake-api/ behind
+    # Nginx Proxy Manager (which strips the prefix), so /docs finds /openapi.json.
+    command: uvicorn app:app --host 0.0.0.0 --port 8001 --root-path /riga-data-lake-api
     ports:
       - "127.0.0.1:9007:8001"
+    networks:
+      - default
+      - energyguard_net
+
+networks:
+  energyguard_net:
+    external: true
+    name: nginxproxy_energyguard_net
