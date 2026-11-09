@@ -1,11 +1,15 @@
 
 import logging
 import os
+from datetime import datetime, timezone
 
 import psycopg2
 from psycopg2 import sql
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
+
+from auth import KC_DOCS_CLIENT_ID, require_user
+from docs_ui import install_docs
 
 load_dotenv()
 
@@ -19,6 +23,7 @@ def _required_setting(name):
     return value
 
 TAGS_METADATA = [
+    {"name": "Authentication", "description": "Check who you are signed in as."},
     {"name": "Heat consumption", "description": "Monthly per-building heat consumption time series (GeoRiga REA)."},
     {"name": "Buildings (GeoRiga)", "description": "Existing, demolished and environment-degrading building footprints."},
     {"name": "Energy efficiency", "description": "Building energy efficiency indicators, renovated buildings and heat supply zones."},
@@ -30,6 +35,10 @@ TAGS_METADATA = [
 ]
 
 app = FastAPI(
+    # Every route requires a Keycloak token; /docs and /openapi.json stay public.
+    dependencies=[Depends(require_user)],
+    docs_url=None,  # /docs is served by docs_ui.install_docs() below
+    swagger_ui_oauth2_redirect_url=None,
     openapi_tags=TAGS_METADATA,
     title="Riga Data Lake API",
     description=(
@@ -37,6 +46,15 @@ app = FastAPI(
         "GeoRiga / data.gov.lv open-data catalogue and the EnergyGuard consortium "
         "(building audits, heat consumption, meteorology, air quality, energy "
         "certificates, spatial/cadastral data, and more)."
+    ),
+)
+
+install_docs(
+    app,
+    init_oauth=(
+        {"clientId": KC_DOCS_CLIENT_ID, "usePkceWithAuthorizationCodeGrant": True}
+        if KC_DOCS_CLIENT_ID
+        else None
     ),
 )
 
@@ -339,6 +357,29 @@ def _register_dataset(ds):
 
 for _ds in DATASETS:
     _register_dataset(_ds)
+
+
+@app.get(
+    "/whoami",
+    tags=["Authentication"],
+    summary="Who am I",
+    description=(
+        "Returns the EnergyGuard user the bearer token belongs to and when it "
+        "expires. Use it to check that you are signed in: it answers 401 if you "
+        "are not."
+    ),
+)
+def whoami(claims: dict = Depends(require_user)):
+    if claims is None:  # AUTH_DISABLED (local development)
+        return {"authenticated": False, "auth_disabled": True}
+    return {
+        "authenticated": True,
+        "username": claims.get("preferred_username"),
+        "name": claims.get("name"),
+        "email": claims.get("email"),
+        "subject": claims.get("sub"),
+        "expires_at": datetime.fromtimestamp(claims["exp"], tz=timezone.utc).isoformat(),
+    }
 
 
 @app.get("/")
